@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -61,24 +62,6 @@ export default function Login() {
     } catch (err) {
       setError("An unexpected error occurred. Please try again.");
       setLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (error) {
-        setError(error.message);
-      }
-    } catch (err) {
-      setError("Failed to sign in with Google");
     }
   };
 
@@ -146,17 +129,35 @@ export default function Login() {
               <label htmlFor="password" className="block text-sm font-semibold text-[#2D2D2D] mb-2">
                 Password
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
-                placeholder="Enter your password"
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="appearance-none rounded-xl relative block w-full px-4 py-3 pr-12 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
+                  placeholder="Enter your password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#999999] hover:text-[#FF9B50] transition-colors"
+                >
+                  {showPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Remember Me & Forgot Password */}
@@ -193,31 +194,6 @@ export default function Login() {
               </button>
             </div>
           </form>
-
-          {/* Divider */}
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-[#FFE5D9]"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-[#999999]">Or continue with</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Social Login */}
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={loading}
-              className="w-full inline-flex justify-center py-3 px-4 rounded-xl border-2 border-[#FFE5D9] bg-white text-sm font-semibold text-[#2D2D2D] hover:bg-[#FFF5EB] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="sr-only">Log in with Google</span>
-              Google
-            </button>
-          </div>
 
           {/* Sign Up Link */}
           <div className="mt-6 text-center">

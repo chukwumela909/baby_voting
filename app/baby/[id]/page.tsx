@@ -143,15 +143,28 @@ export default function BabyProfile() {
         throw voteError;
       }
 
-      // Then increment vote count
-      const { error: updateError } = await supabase
-        .from('babies')
-        .update({ vote_count: voteCount + 1 })
-        .eq('id', baby.id);
+      // Use RPC to increment vote count atomically
+      const { error: rpcError } = await supabase.rpc('increment_vote_count', {
+        baby_id: baby.id
+      });
 
-      if (updateError) throw updateError;
+      if (rpcError) {
+        console.error('RPC Error:', rpcError);
+        // Fallback: fetch updated vote count
+        const { data: updatedBaby } = await supabase
+          .from('babies')
+          .select('vote_count')
+          .eq('id', baby.id)
+          .single();
+        
+        if (updatedBaby) {
+          setVoteCount(updatedBaby.vote_count);
+        }
+      } else {
+        // Successfully incremented, update local state
+        setVoteCount(voteCount + 1);
+      }
 
-      setVoteCount(voteCount + 1);
       setHasVoted(true);
     } catch (error) {
       console.error('Error voting:', error);
@@ -232,14 +245,14 @@ export default function BabyProfile() {
             </div>
 
             {/* Comments Section (Placeholder) */}
-            <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+            {/* <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
               <h3 className="font-[family-name:var(--font-quicksand)] text-xl font-bold text-[#2D2D2D] mb-4">
                 Comments
               </h3>
               <div className="text-center py-8 text-[#999999]">
                 <p>No comments yet. Be the first to comment!</p>
               </div>
-            </div>
+            </div> */}
           </div>
 
           {/* Sidebar */}

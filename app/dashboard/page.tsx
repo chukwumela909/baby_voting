@@ -136,14 +136,10 @@ export default function Dashboard() {
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
                   className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
                 >
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#FFB6C1] overflow-hidden">
-                    <Image
-                      src="https://images.unsplash.com/photo-1494790108377-be9c29b29330"
-                      alt="User profile"
-                      width={40}
-                      height={40}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#FFB6C1] to-[#FF9B50] flex items-center justify-center">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                    </svg>
                   </div>
                   <span className="hidden sm:inline text-[#2D2D2D] font-medium">
                     {user?.user_metadata?.full_name || "User"}

@@ -19,6 +19,7 @@ interface Baby {
 export default function Home() {
   const [featuredBabies, setFeaturedBabies] = useState<Baby[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     fetchFeaturedBabies();
@@ -71,7 +72,7 @@ export default function Home() {
                 How It Works
               </Link>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-4">
               <Link 
                 href="/login"
                 className="text-[#2D2D2D] hover:text-[#FF9B50] transition-colors font-semibold"
@@ -85,7 +86,72 @@ export default function Home() {
                 Sign Up
               </Link>
             </div>
+
+            {/* Mobile menu button */}
+            <div className="md:hidden flex items-center space-x-4">
+              <Link 
+                href="/login"
+                className="text-[#2D2D2D] hover:text-[#FF9B50] transition-colors font-semibold text-sm"
+              >
+                Login
+              </Link>
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="text-[#2D2D2D] hover:text-[#FF9B50] transition-colors p-2"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {mobileMenuOpen ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  )}
+                </svg>
+              </button>
+            </div>
           </div>
+
+          {/* Mobile menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden py-4 border-t border-[#FFE5D9]">
+              <div className="flex flex-col space-y-4">
+                <Link 
+                  href="#" 
+                  className="text-[#2D2D2D] hover:text-[#FF9B50] transition-colors font-medium py-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Home
+                </Link>
+                <Link 
+                  href="/gallery" 
+                  className="text-[#2D2D2D] hover:text-[#FF9B50] transition-colors font-medium py-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Gallery
+                </Link>
+                <Link 
+                  href="/leaderboard" 
+                  className="text-[#2D2D2D] hover:text-[#FF9B50] transition-colors font-medium py-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Leaderboard
+                </Link>
+                <Link 
+                  href="#how-it-works" 
+                  className="text-[#2D2D2D] hover:text-[#FF9B50] transition-colors font-medium py-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  How It Works
+                </Link>
+                <Link 
+                  href="/signup"
+                  className="bg-[#FF9B50] text-white px-6 py-3 rounded-full font-semibold hover:bg-[#FF8A3D] transition-all duration-300 text-center"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Sign Up
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 

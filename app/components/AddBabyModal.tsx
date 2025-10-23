@@ -67,8 +67,8 @@ export default function AddBabyModal({ isOpen, onClose, onSuccess }: AddBabyModa
     }
 
     const ageNum = parseInt(age);
-    if (isNaN(ageNum) || ageNum < 0 || ageNum > 24) {
-      setError('Please enter a valid age (0-24 months)');
+    if (isNaN(ageNum) || ageNum < 0 || ageNum > 60) {
+      setError('Please enter a valid age (0-60 months)');
       return;
     }
 
@@ -283,13 +283,13 @@ export default function AddBabyModal({ isOpen, onClose, onSuccess }: AddBabyModa
                         name="age-months"
                         type="number"
                         min="0"
-                        max="24"
+                        max="60"
                         required
                         value={age}
                         onChange={(e) => setAge(e.target.value)}
                         disabled={loading}
                         className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all disabled:opacity-50"
-                        placeholder="0-24"
+                        placeholder="0-60"
                       />
                     </div>
                     <div>
