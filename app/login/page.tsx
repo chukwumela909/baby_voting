@@ -2,16 +2,84 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent } from "react";
+import { FormEvent, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const router = useRouter();
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // TODO: Implement actual authentication logic
-    // For now, just redirect to dashboard
-    router.push("/dashboard");
+    setError("");
+
+    // Validation
+    if (!email.trim()) {
+      setError("Please enter your email");
+      return;
+    }
+
+    if (!password) {
+      setError("Please enter your password");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        // Handle specific error cases
+        if (signInError.message.includes("Invalid login credentials") || 
+            signInError.message.includes("invalid") ||
+            signInError.message.includes("Email not confirmed")) {
+          setError("Invalid email or password. Please check your credentials and try again.");
+        } else if (signInError.message.includes("Email not confirmed")) {
+          setError("Please confirm your email address before logging in.");
+        } else {
+          setError(signInError.message);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        // Redirect to dashboard
+        router.push("/dashboard");
+        router.refresh();
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        setError(error.message);
+      }
+    } catch (err) {
+      setError("Failed to sign in with Google");
+    }
   };
 
   return (
@@ -27,8 +95,8 @@ export default function Login() {
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <Link href="/">
-            <h1 className="font-[family-name:var(--font-quicksand)] text-4xl font-bold text-[#FF9B50] mb-2">
-              BabyVote
+            <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#FF9B50] mb-2">
+              PFBOTY
             </h1>
           </Link>
           <p className="text-[#666666] text-lg">Welcome back! Log in to continue</p>
@@ -41,6 +109,20 @@ export default function Login() {
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                {error}
+                {error.includes("Invalid email or password") && (
+                  <div className="mt-2">
+                    <Link href="/forgot-password" className="font-semibold underline hover:text-red-800">
+                      Forgot your password? →
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-[#2D2D2D] mb-2">
@@ -52,6 +134,8 @@ export default function Login() {
                 type="email"
                 autoComplete="email"
                 required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
                 placeholder="you@example.com"
               />
@@ -68,6 +152,8 @@ export default function Login() {
                 type="password"
                 autoComplete="current-password"
                 required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
                 placeholder="Enter your password"
               />
@@ -80,6 +166,8 @@ export default function Login() {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="h-4 w-4 text-[#FF9B50] focus:ring-[#FF9B50] border-[#FFE5D9] rounded"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-[#666666]">
@@ -98,9 +186,10 @@ export default function Login() {
             <div className="pt-2">
               <button
                 type="submit"
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-full shadow-sm text-base font-semibold text-white bg-[#FF9B50] hover:bg-[#FF8A3D] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF9B50] transition-all duration-300"
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-full shadow-sm text-base font-semibold text-white bg-[#FF9B50] hover:bg-[#FF8A3D] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF9B50] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Log In
+                {loading ? "Logging in..." : "Log In"}
               </button>
             </div>
           </form>
@@ -119,7 +208,12 @@ export default function Login() {
 
           {/* Social Login */}
           <div className="mt-6">
-            <button className="w-full inline-flex justify-center py-3 px-4 rounded-xl border-2 border-[#FFE5D9] bg-white text-sm font-semibold text-[#2D2D2D] hover:bg-[#FFF5EB] transition-all">
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+              className="w-full inline-flex justify-center py-3 px-4 rounded-xl border-2 border-[#FFE5D9] bg-white text-sm font-semibold text-[#2D2D2D] hover:bg-[#FFF5EB] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <span className="sr-only">Log in with Google</span>
               Google
             </button>

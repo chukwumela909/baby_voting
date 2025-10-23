@@ -1,7 +1,107 @@
+"use client";
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 export default function SignUp() {
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const router = useRouter();
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    // Validation
+    if (!fullName.trim()) {
+      setError("Please enter your full name");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    if (!agreedToTerms) {
+      setError("Please agree to the terms and conditions");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
+      });
+
+      if (signUpError) {
+        // Handle specific error cases
+        if (signUpError.message.includes("already registered") || 
+            signUpError.message.includes("already exists") ||
+            signUpError.message.includes("User already registered")) {
+          setError("This email is already registered. Please log in instead or use a different email.");
+        } else {
+          setError(signUpError.message);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        // Check if user needs to confirm email
+        if (data.user.identities && data.user.identities.length === 0) {
+          setError("This email is already registered. Please log in instead.");
+          setLoading(false);
+          return;
+        }
+        
+        // Redirect to dashboard
+        router.push("/dashboard");
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        setError(error.message);
+      }
+    } catch (err) {
+      setError("Failed to sign in with Google");
+    }
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#FFF5EB] to-[#FFE5D9] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Decorative Elements */}
@@ -15,8 +115,8 @@ export default function SignUp() {
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <Link href="/">
-            <h1 className="font-[family-name:var(--font-quicksand)] text-4xl font-bold text-[#FF9B50] mb-2">
-              BabyVote
+            <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#FF9B50] mb-2">
+              PFBOTY
             </h1>
           </Link>
           <p className="text-[#666666] text-lg">Create your account and join the fun!</p>
@@ -28,7 +128,21 @@ export default function SignUp() {
             Sign Up
           </h2>
 
-          <form className="space-y-5">
+          <form onSubmit={handleSignUp} className="space-y-5">
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                {error}
+                {error.includes("already registered") && (
+                  <div className="mt-2">
+                    <Link href="/login" className="font-semibold underline hover:text-red-800">
+                      Go to Login →
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Full Name */}
             <div>
               <label htmlFor="fullname" className="block text-sm font-semibold text-[#2D2D2D] mb-2">
@@ -39,6 +153,8 @@ export default function SignUp() {
                 name="fullname"
                 type="text"
                 required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
                 className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
                 placeholder="Enter your full name"
               />
@@ -55,6 +171,8 @@ export default function SignUp() {
                 type="email"
                 autoComplete="email"
                 required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
                 placeholder="you@example.com"
               />
@@ -71,6 +189,8 @@ export default function SignUp() {
                 type="password"
                 autoComplete="new-password"
                 required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
                 placeholder="Create a password"
               />
@@ -87,6 +207,8 @@ export default function SignUp() {
                 type="password"
                 autoComplete="new-password"
                 required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
                 placeholder="Confirm your password"
               />
@@ -99,6 +221,8 @@ export default function SignUp() {
                   id="terms"
                   name="terms"
                   type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
                   required
                   className="h-4 w-4 text-[#FF9B50] focus:ring-[#FF9B50] border-[#FFE5D9] rounded"
                 />
@@ -117,9 +241,10 @@ export default function SignUp() {
             <div className="pt-2">
               <button
                 type="submit"
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-full shadow-sm text-base font-semibold text-white bg-[#FF9B50] hover:bg-[#FF8A3D] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF9B50] transition-all duration-300"
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-full shadow-sm text-base font-semibold text-white bg-[#FF9B50] hover:bg-[#FF8A3D] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF9B50] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Account
+                {loading ? "Creating Account..." : "Create Account"}
               </button>
             </div>
           </form>
@@ -138,7 +263,12 @@ export default function SignUp() {
 
           {/* Social Sign Up */}
           <div className="mt-6">
-            <button className="w-full inline-flex justify-center py-3 px-4 rounded-xl border-2 border-[#FFE5D9] bg-white text-sm font-semibold text-[#2D2D2D] hover:bg-[#FFF5EB] transition-all">
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+              className="w-full inline-flex justify-center py-3 px-4 rounded-xl border-2 border-[#FFE5D9] bg-white text-sm font-semibold text-[#2D2D2D] hover:bg-[#FFF5EB] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <span className="sr-only">Sign up with Google</span>
               Google
             </button>

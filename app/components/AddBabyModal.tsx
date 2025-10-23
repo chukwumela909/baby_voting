@@ -2,37 +2,166 @@
 import { Fragment, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import Image from 'next/image';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AddBabyModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export default function AddBabyModal({ isOpen, onClose }: AddBabyModalProps) {
+export default function AddBabyModal({ isOpen, onClose, onSuccess }: AddBabyModalProps) {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [name, setName] = useState('');
+  const [age, setAge] = useState('');
+  const [gender, setGender] = useState('');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { user } = useAuth();
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select an image file');
+        return;
+      }
+
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size must be less than 5MB');
+        return;
+      }
+
+      setSelectedFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewImage(reader.result as string);
       };
       reader.readAsDataURL(file);
+      setError('');
     }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // TODO: Implement actual upload logic
-    console.log('Form submitted');
-    setPreviewImage(null);
-    onClose();
+    setError('');
+
+    if (!user) {
+      setError('You must be logged in to upload a baby profile');
+      return;
+    }
+
+    if (!selectedFile) {
+      setError('Please select a photo');
+      return;
+    }
+
+    if (!name.trim()) {
+      setError('Please enter baby\'s name');
+      return;
+    }
+
+    const ageNum = parseInt(age);
+    if (isNaN(ageNum) || ageNum < 0 || ageNum > 24) {
+      setError('Please enter a valid age (0-24 months)');
+      return;
+    }
+
+    if (!gender) {
+      setError('Please select gender');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      // Upload image to storage
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('baby-photos')
+        .upload(fileName, selectedFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        setError('Failed to upload photo: ' + uploadError.message);
+        setLoading(false);
+        return;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('baby-photos')
+        .getPublicUrl(fileName);
+
+      // Insert baby record
+      const { data: babyData, error: insertError } = await supabase
+        .from('babies')
+        .insert({
+          user_id: user.id,
+          name: name.trim(),
+          age: ageNum,
+          gender,
+          description: description.trim() || null,
+          photo_url: publicUrl
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        // If baby insert fails, delete the uploaded image
+        await supabase.storage.from('baby-photos').remove([fileName]);
+        setError('Failed to create baby profile: ' + insertError.message);
+        setLoading(false);
+        return;
+      }
+
+      // Success! Reset form
+      setName('');
+      setAge('');
+      setGender('');
+      setDescription('');
+      setPreviewImage(null);
+      setSelectedFile(null);
+      setLoading(false);
+      
+      if (onSuccess) {
+        onSuccess();
+      }
+      
+      onClose();
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.');
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!loading) {
+      setName('');
+      setAge('');
+      setGender('');
+      setDescription('');
+      setPreviewImage(null);
+      setSelectedFile(null);
+      setError('');
+      onClose();
+    }
   };
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog as="div" className="relative z-50" onClose={handleClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -66,8 +195,9 @@ export default function AddBabyModal({ isOpen, onClose }: AddBabyModalProps) {
                     Add Baby Profile
                   </Dialog.Title>
                   <button
-                    onClick={onClose}
-                    className="text-[#999999] hover:text-[#2D2D2D] transition-colors"
+                    onClick={handleClose}
+                    disabled={loading}
+                    className="text-[#999999] hover:text-[#2D2D2D] transition-colors disabled:opacity-50"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -77,10 +207,17 @@ export default function AddBabyModal({ isOpen, onClose }: AddBabyModalProps) {
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-5">
+                  {/* Error Message */}
+                  {error && (
+                    <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                      {error}
+                    </div>
+                  )}
+
                   {/* Photo Upload */}
                   <div>
                     <label className="block text-sm font-semibold text-[#2D2D2D] mb-2">
-                      Baby Photo
+                      Baby Photo *
                     </label>
                     <label htmlFor="photo-upload" className="block border-2 border-dashed border-[#FFE5D9] rounded-2xl p-6 text-center hover:border-[#FF9B50] transition-colors cursor-pointer">
                       {previewImage ? (
@@ -101,17 +238,18 @@ export default function AddBabyModal({ isOpen, onClose }: AddBabyModalProps) {
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-[#2D2D2D]">Click to upload photo</p>
-                            <p className="text-xs text-[#999999]">PNG, JPG up to 10MB</p>
+                            <p className="text-xs text-[#999999]">PNG, JPG, WebP up to 5MB</p>
                           </div>
                         </div>
                       )}
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/webp,image/jpg"
                         className="hidden"
                         id="photo-upload"
                         onChange={handleImageChange}
                         required
+                        disabled={loading}
                       />
                     </label>
                   </div>
@@ -119,14 +257,17 @@ export default function AddBabyModal({ isOpen, onClose }: AddBabyModalProps) {
                   {/* Baby Name */}
                   <div>
                     <label htmlFor="baby-name" className="block text-sm font-semibold text-[#2D2D2D] mb-2">
-                      Baby Name
+                      Baby Name *
                     </label>
                     <input
                       id="baby-name"
                       name="baby-name"
                       type="text"
                       required
-                      className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      disabled={loading}
+                      className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all disabled:opacity-50"
                       placeholder="Enter baby's name"
                     />
                   </div>
@@ -135,7 +276,7 @@ export default function AddBabyModal({ isOpen, onClose }: AddBabyModalProps) {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label htmlFor="age-months" className="block text-sm font-semibold text-[#2D2D2D] mb-2">
-                        Age (months)
+                        Age (months) *
                       </label>
                       <input
                         id="age-months"
@@ -144,21 +285,29 @@ export default function AddBabyModal({ isOpen, onClose }: AddBabyModalProps) {
                         min="0"
                         max="24"
                         required
-                        className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
+                        value={age}
+                        onChange={(e) => setAge(e.target.value)}
+                        disabled={loading}
+                        className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all disabled:opacity-50"
                         placeholder="0-24"
                       />
                     </div>
                     <div>
                       <label htmlFor="gender" className="block text-sm font-semibold text-[#2D2D2D] mb-2">
-                        Gender
+                        Gender *
                       </label>
                       <select
                         id="gender"
                         name="gender"
-                        className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
+                        required
+                        value={gender}
+                        onChange={(e) => setGender(e.target.value)}
+                        disabled={loading}
+                        className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all disabled:opacity-50"
                       >
-                        <option value="male">Boy</option>
-                        <option value="female">Girl</option>
+                        <option value="">Select...</option>
+                        <option value="boy">Boy</option>
+                        <option value="girl">Girl</option>
                         <option value="other">Other</option>
                       </select>
                     </div>
@@ -167,13 +316,16 @@ export default function AddBabyModal({ isOpen, onClose }: AddBabyModalProps) {
                   {/* Description */}
                   <div>
                     <label htmlFor="description" className="block text-sm font-semibold text-[#2D2D2D] mb-2">
-                      Description
+                      Description (Optional)
                     </label>
                     <textarea
                       id="description"
                       name="description"
                       rows={3}
-                      className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all resize-none"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      disabled={loading}
+                      className="appearance-none rounded-xl relative block w-full px-4 py-3 border-2 border-[#FFE5D9] placeholder-[#999999] text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all resize-none disabled:opacity-50"
                       placeholder="Tell us about your baby..."
                     />
                   </div>
@@ -182,16 +334,18 @@ export default function AddBabyModal({ isOpen, onClose }: AddBabyModalProps) {
                   <div className="flex gap-3 pt-2">
                     <button
                       type="button"
-                      onClick={onClose}
-                      className="flex-1 bg-[#FFF8F0] text-[#666666] px-6 py-3 rounded-full font-semibold hover:bg-[#FFE5D9] transition-all duration-300"
+                      onClick={handleClose}
+                      disabled={loading}
+                      className="flex-1 bg-[#FFF8F0] text-[#666666] px-6 py-3 rounded-full font-semibold hover:bg-[#FFE5D9] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 bg-[#FF9B50] text-white px-6 py-3 rounded-full font-semibold hover:bg-[#FF8A3D] transition-all duration-300"
+                      disabled={loading}
+                      className="flex-1 bg-[#FF9B50] text-white px-6 py-3 rounded-full font-semibold hover:bg-[#FF8A3D] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Add Baby
+                      {loading ? "Uploading..." : "Add Baby"}
                     </button>
                   </div>
                 </form>

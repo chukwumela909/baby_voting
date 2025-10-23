@@ -1,7 +1,51 @@
+"use client";
 import Image from "next/image";
 import Link from "next/link";
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+
+interface Baby {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+  description: string | null;
+  photo_url: string;
+  vote_count: number;
+  created_at: string;
+  user_id: string;
+}
 
 export default function Home() {
+  const [featuredBabies, setFeaturedBabies] = useState<Baby[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchFeaturedBabies();
+  }, []);
+
+  const fetchFeaturedBabies = async () => {
+    const supabase = createClient();
+    
+    try {
+      const { data, error } = await supabase
+        .from('babies')
+        .select('*')
+        .order('vote_count', { ascending: false })
+        .limit(6);
+
+      if (error) throw error;
+      setFeaturedBabies(data || []);
+    } catch (error) {
+      console.error('Error fetching babies:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const borderColors = ["#FFB6C1", "#A8D8EA", "#FFE66D", "#D4C5E8", "#FFC0CB", "#B8E6D5"];
+  const getBorderColor = (index: number) => borderColors[index % borderColors.length];
+
   return (
     <div className="min-h-screen bg-[#FFF5EB]">
       {/* Navigation */}
@@ -10,7 +54,7 @@ export default function Home() {
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center">
               <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#FF9B50]">
-                BabyVote
+                PFBOTY
               </h1>
             </div>
             <div className="hidden md:flex items-center space-x-8">
@@ -19,6 +63,9 @@ export default function Home() {
               </Link>
               <Link href="/gallery" className="text-[#2D2D2D] hover:text-[#FF9B50] transition-colors font-medium">
                 Gallery
+              </Link>
+              <Link href="/leaderboard" className="text-[#2D2D2D] hover:text-[#FF9B50] transition-colors font-medium">
+                Leaderboard
               </Link>
               <Link href="#how-it-works" className="text-[#2D2D2D] hover:text-[#FF9B50] transition-colors font-medium">
                 How It Works
@@ -105,21 +152,21 @@ export default function Home() {
             {/* Left Content */}
             <div className="space-y-6 relative z-10">
               <div className="space-y-3">
-                <h2 className="font-[family-name:var(--font-quicksand)] text-4xl sm:text-5xl lg:text-5xl xl:text-6xl font-bold text-[#2D2D2D] leading-tight">
-                  Share Your Little
-                  <span className="block text-[#FF9B50]">Bundle of Joy</span>
-                </h2>
-                <p className="text-sm sm:text-base lg:text-lg text-[#666666] leading-relaxed max-w-xl">
-                  Join our community of proud parents. Upload your baby's photos and let everyone celebrate their cuteness with votes and love.
-                </p>
+              <h2 className="font-[family-name:var(--font-quicksand)] text-4xl sm:text-5xl lg:text-5xl xl:text-6xl font-bold text-[#2D2D2D] leading-tight">
+                Polio Free Baby
+                <span className="block text-[#FF9B50]">of the Year</span>
+              </h2>
+              <p className="text-sm sm:text-base lg:text-lg text-[#666666] leading-relaxed max-w-xl">
+                Join our community of proud parents. Upload your baby's photos and let everyone celebrate their cuteness with votes and love.
+              </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
-                <Link 
-                  href="#"
-                  className="bg-[#FF9B50] text-white px-7 py-3 rounded-full font-semibold text-sm sm:text-base hover:bg-[#FF8A3D] transition-all hover:shadow-lg duration-300 text-center"
-                >
-                  Get Started Free
-                </Link>
+              <Link 
+                href="#"
+                className="bg-[#FF9B50] text-white px-7 py-3 rounded-full font-semibold text-sm sm:text-base hover:bg-[#FF8A3D] transition-all hover:shadow-lg duration-300 text-center"
+              >
+                Get Started Free
+              </Link>
                 <Link 
                   href="/gallery"
                   className="bg-white text-[#FF9B50] px-7 py-3 rounded-full font-semibold text-sm sm:text-base border-2 border-[#FF9B50] hover:bg-[#FF9B50] hover:text-white transition-all duration-300 text-center"
@@ -180,70 +227,72 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {[
-              {
-                name: "Emma Rose",
-                age: "8 months",
-                votes: 234,
-                image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b",
-                borderColor: "#FFB6C1"
-              },
-              {
-                name: "Noah James",
-                age: "6 months",
-                votes: 198,
-                image: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9",
-                borderColor: "#A8D8EA"
-              },
-              {
-                name: "Sophia Grace",
-                age: "10 months",
-                votes: 187,
-                image: "https://images.unsplash.com/photo-1500042600524-37ecb686c775",
-                borderColor: "#FFE66D"
-              },
-              {
-                name: "Liam Oliver",
-                age: "7 months",
-                votes: 165,
-                image: "https://images.unsplash.com/photo-1502086223501-7ea6ecd79368",
-                borderColor: "#D4C5E8"
-              }
-            ].map((baby, index) => (
-              <div 
-                key={index}
-                className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 relative"
-                style={{
-                  border: `3px dashed ${baby.borderColor}`,
-                  borderStyle: 'dashed',
-                }}
-              >
-                <div className="relative h-64 overflow-hidden">
-                  <Image
-                    src={baby.image}
-                    alt={`Photo of ${baby.name}`}
-                    width={400}
-                    height={400}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="p-4">
-                  <h4 className="font-[family-name:var(--font-quicksand)] text-lg font-semibold text-[#2D2D2D] mb-1">
-                    {baby.name}
-                  </h4>
-                  <p className="text-sm text-[#999999] mb-3">{baby.age}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-[#666666]">{baby.votes} votes</span>
-                    <button 
-                      className="text-white px-4 py-2 rounded-full text-sm font-semibold hover:opacity-90 transition-all duration-300"
-                      style={{ backgroundColor: baby.borderColor }}
-                    >
-                      View Profile
-                    </button>
+            {loading ? (
+              // Loading skeleton
+              [...Array(4)].map((_, index) => (
+                <div key={index} className="bg-white rounded-2xl overflow-hidden shadow-md border-3 border-dashed border-gray-200 animate-pulse">
+                  <div className="h-64 bg-gray-200"></div>
+                  <div className="p-4">
+                    <div className="h-5 bg-gray-200 rounded mb-2 w-3/4"></div>
+                    <div className="h-4 bg-gray-200 rounded mb-3 w-1/4"></div>
+                    <div className="flex justify-between">
+                      <div className="h-4 bg-gray-200 rounded w-16"></div>
+                      <div className="h-8 bg-gray-200 rounded w-24"></div>
+                    </div>
                   </div>
                 </div>
+              ))
+            ) : featuredBabies.length === 0 ? (
+              // Empty state
+              <div className="col-span-full text-center py-12">
+                <p className="text-[#999999] mb-4">No babies to display yet</p>
+                <Link 
+                  href="/signup"
+                  className="inline-block bg-[#FF9B50] text-white px-6 py-3 rounded-full font-semibold hover:bg-[#FF8A3D] transition-all duration-300"
+                >
+                  Be the First to Upload
+                </Link>
               </div>
-            ))}
+            ) : (
+              featuredBabies.map((baby, index) => (
+                <div 
+                  key={baby.id}
+                  className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 relative"
+                  style={{
+                    border: `3px dashed ${getBorderColor(index)}`,
+                    borderStyle: 'dashed',
+                  }}
+                >
+                  <div className="relative h-64 overflow-hidden">
+                    <Image
+                      src={baby.photo_url}
+                      alt={`Photo of ${baby.name}`}
+                      width={400}
+                      height={400}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="p-4">
+                    <h4 className="font-[family-name:var(--font-quicksand)] text-lg font-semibold text-[#2D2D2D] mb-1">
+                      {baby.name}
+                    </h4>
+                    <p className="text-sm text-[#999999] mb-3">
+                      {baby.age} {baby.age === 1 ? 'month' : 'months'}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#666666]">{baby.vote_count} votes</span>
+                      <Link
+                        href={`/baby/${baby.id}`}
+                        className="text-white px-4 py-2 rounded-full text-sm font-semibold hover:opacity-90 transition-all duration-300"
+                        style={{ backgroundColor: getBorderColor(index) }}
+                      >
+                        View Profile
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="text-center mt-12">
@@ -412,7 +461,7 @@ export default function Home() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <h4 className="font-[family-name:var(--font-quicksand)] text-xl font-bold text-[#FF9B50] mb-4">
-                BabyVote
+                PFBOTY
               </h4>
               <p className="text-white/70 text-sm leading-relaxed">
                 Celebrating the joy and cuteness of babies from around the world.
@@ -444,7 +493,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-white/20 pt-8 text-center text-sm text-white/60">
-            <p>2025 BabyVote. All rights reserved. Made with love for babies everywhere.</p>
+            <p>2025 PFBOTY. All rights reserved. Made with love for babies everywhere.</p>
           </div>
         </div>
       </footer>

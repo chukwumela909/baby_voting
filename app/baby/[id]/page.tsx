@@ -2,63 +2,98 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
-// Mock data - will be replaced with actual data from database
-const babyData: { [key: string]: any } = {
-  "1": {
-    name: "Emma Rose",
-    age: "8 months",
-    gender: "Girl",
-    votes: 234,
-    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b",
-    borderColor: "#FFB6C1",
-    description: "Always smiling and loves to play with toys. Emma has the brightest personality and brings joy to everyone around her. She loves music and dancing!",
-    uploadedBy: "Sarah Johnson",
-    uploadDate: "2 weeks ago",
-    gallery: [
-      "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b",
-      "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4",
-      "https://images.unsplash.com/photo-1555252333-9f8e92e65df9"
-    ]
-  },
-  "2": {
-    name: "Noah James",
-    age: "6 months",
-    gender: "Boy",
-    votes: 198,
-    image: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9",
-    borderColor: "#A8D8EA",
-    description: "Curious little explorer with beautiful eyes. Noah loves discovering new things every day and has the sweetest smile!",
-    uploadedBy: "Michael Chen",
-    uploadDate: "1 week ago",
-    gallery: [
-      "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9",
-      "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4"
-    ]
-  },
-  "3": {
-    name: "Sophia Grace",
-    age: "10 months",
-    gender: "Girl",
-    votes: 187,
-    image: "https://images.unsplash.com/photo-1500042600524-37ecb686c775",
-    borderColor: "#FFE66D",
-    description: "Sweet and gentle, loves cuddles. Sophia is the most affectionate baby and loves story time before bed!",
-    uploadedBy: "Emily Davis",
-    uploadDate: "3 days ago",
-    gallery: [
-      "https://images.unsplash.com/photo-1500042600524-37ecb686c775"
-    ]
-  }
-};
+interface Baby {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+  description: string | null;
+  photo_url: string;
+  vote_count: number;
+  created_at: string;
+  user_id: string;
+}
 
 export default function BabyProfile() {
   const params = useParams();
   const babyId = params.id as string;
-  const baby = babyData[babyId];
+  const { user } = useAuth();
+  const [baby, setBaby] = useState<Baby | null>(null);
+  const [loading, setLoading] = useState(true);
   const [hasVoted, setHasVoted] = useState(false);
-  const [voteCount, setVoteCount] = useState(baby?.votes || 0);
+  const [voteCount, setVoteCount] = useState(0);
+
+  useEffect(() => {
+    if (babyId) {
+      fetchBabyData();
+    }
+  }, [babyId]);
+
+  useEffect(() => {
+    if (user && babyId) {
+      checkIfUserHasVoted();
+    }
+  }, [user, babyId]);
+
+  const fetchBabyData = async () => {
+    setLoading(true);
+    const supabase = createClient();
+
+    try {
+      const { data, error } = await supabase
+        .from('babies')
+        .select('*')
+        .eq('id', babyId)
+        .single();
+
+      if (error) throw error;
+
+      setBaby(data);
+      setVoteCount(data.vote_count);
+    } catch (error) {
+      console.error('Error fetching baby:', error);
+      setBaby(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkIfUserHasVoted = async () => {
+    if (!user) return;
+    
+    const supabase = createClient();
+    
+    try {
+      const { data, error } = await supabase
+        .from('votes')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('baby_id', babyId)
+        .single();
+
+      if (data) {
+        setHasVoted(true);
+      }
+    } catch (error) {
+      // No vote found, user hasn't voted yet
+      setHasVoted(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FFF5EB] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF9B50] mx-auto mb-4"></div>
+          <p className="text-[#666666]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!baby) {
     return (
@@ -75,12 +110,69 @@ export default function BabyProfile() {
     );
   }
 
-  const handleVote = () => {
-    if (!hasVoted) {
+  const handleVote = async () => {
+    if (!user) {
+      alert('Please log in to vote');
+      return;
+    }
+
+    if (hasVoted) {
+      return;
+    }
+
+    if (!baby) return;
+
+    const supabase = createClient();
+    
+    try {
+      // Insert vote record first
+      const { error: voteError } = await supabase
+        .from('votes')
+        .insert({
+          user_id: user.id,
+          baby_id: baby.id
+        });
+
+      if (voteError) {
+        // Check if it's a duplicate vote error
+        if (voteError.code === '23505') {
+          alert('You have already voted for this baby!');
+          setHasVoted(true);
+          return;
+        }
+        throw voteError;
+      }
+
+      // Then increment vote count
+      const { error: updateError } = await supabase
+        .from('babies')
+        .update({ vote_count: voteCount + 1 })
+        .eq('id', baby.id);
+
+      if (updateError) throw updateError;
+
       setVoteCount(voteCount + 1);
       setHasVoted(true);
-      // TODO: Send vote to backend
+    } catch (error) {
+      console.error('Error voting:', error);
+      alert('Failed to vote. Please try again.');
     }
+  };
+
+  const borderColors = ["#FFB6C1", "#A8D8EA", "#FFE66D", "#D4C5E8", "#FFC0CB", "#B8E6D5"];
+  const borderColor = borderColors[baby ? parseInt(baby.id.slice(0, 8), 16) % borderColors.length : 0];
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    return `${Math.floor(diffDays / 30)} months ago`;
   };
 
   return (
@@ -98,7 +190,7 @@ export default function BabyProfile() {
             
             <Link href="/dashboard">
               <h1 className="font-[family-name:var(--font-quicksand)] text-xl sm:text-2xl font-bold text-[#FF9B50]">
-                BabyVote
+                PFBOTY
               </h1>
             </Link>
 
@@ -115,12 +207,12 @@ export default function BabyProfile() {
             <div 
               className="bg-white rounded-3xl overflow-hidden shadow-lg"
               style={{
-                border: `4px dashed ${baby.borderColor}`,
+                border: `4px dashed ${borderColor}`,
               }}
             >
               <div className="relative h-64 sm:h-96 lg:h-[500px]">
                 <Image
-                  src={baby.image}
+                  src={baby.photo_url}
                   alt={baby.name}
                   fill
                   className="object-cover"
@@ -129,40 +221,13 @@ export default function BabyProfile() {
               </div>
             </div>
 
-            {/* Photo Gallery */}
-            {baby.gallery && baby.gallery.length > 1 && (
-              <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-                <h3 className="font-[family-name:var(--font-quicksand)] text-xl font-bold text-[#2D2D2D] mb-4">
-                  More Photos
-                </h3>
-                <div className="grid grid-cols-3 gap-3 sm:gap-4">
-                  {baby.gallery.slice(1).map((photo: string, index: number) => (
-                    <div 
-                      key={index}
-                      className="relative aspect-square rounded-xl overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                      style={{
-                        border: `2px dashed ${baby.borderColor}`,
-                      }}
-                    >
-                      <Image
-                        src={photo}
-                        alt={`${baby.name} photo ${index + 2}`}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* About Section */}
             <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
               <h3 className="font-[family-name:var(--font-quicksand)] text-xl font-bold text-[#2D2D2D] mb-4">
                 About {baby.name}
               </h3>
               <p className="text-[#666666] leading-relaxed">
-                {baby.description}
+                {baby.description || "No description provided."}
               </p>
             </div>
 
@@ -183,7 +248,7 @@ export default function BabyProfile() {
             <div 
               className="bg-white rounded-2xl shadow-sm p-4 sm:p-6 sticky top-24"
               style={{
-                border: `3px dashed ${baby.borderColor}`,
+                border: `3px dashed ${borderColor}`,
               }}
             >
               <h2 className="font-[family-name:var(--font-quicksand)] text-2xl sm:text-3xl font-bold text-[#2D2D2D] mb-2">
@@ -195,7 +260,7 @@ export default function BabyProfile() {
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="text-sm">{baby.age}</span>
+                  <span className="text-sm">{baby.age} {baby.age === 1 ? 'month' : 'months'}</span>
                 </div>
                 <div className="flex items-center text-[#666666]">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,15 +270,9 @@ export default function BabyProfile() {
                 </div>
                 <div className="flex items-center text-[#666666]">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  <span className="text-sm">Uploaded by {baby.uploadedBy}</span>
-                </div>
-                <div className="flex items-center text-[#666666]">
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  <span className="text-sm">{baby.uploadDate}</span>
+                  <span className="text-sm">{formatDate(baby.created_at)}</span>
                 </div>
               </div>
 
@@ -246,41 +305,6 @@ export default function BabyProfile() {
                 </svg>
                 <span>Share</span>
               </button>
-            </div>
-
-            {/* Similar Babies */}
-            <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-              <h3 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#2D2D2D] mb-4">
-                Similar Babies
-              </h3>
-              <div className="space-y-3">
-                {Object.entries(babyData)
-                  .filter(([id]) => id !== babyId)
-                  .slice(0, 3)
-                  .map(([id, similarBaby]) => (
-                    <Link
-                      key={id}
-                      href={`/baby/${id}`}
-                      className="flex items-center space-x-3 p-2 rounded-xl hover:bg-[#FFF8F0] transition-colors"
-                    >
-                      <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-[#FFB6C1]">
-                        <Image
-                          src={similarBaby.image}
-                          alt={similarBaby.name}
-                          width={48}
-                          height={48}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-[#2D2D2D] truncate">
-                          {similarBaby.name}
-                        </p>
-                        <p className="text-xs text-[#999999]">{similarBaby.votes} votes</p>
-                      </div>
-                    </Link>
-                  ))}
-              </div>
             </div>
           </div>
         </div>
